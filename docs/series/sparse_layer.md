@@ -18,7 +18,7 @@ of a dense model while using far less compute per token.
 For all the [optimization](./moe.md) required to make MoEs train and scale, routing itself is often
 just a single linear projection from the token’s hidden state into $m$ **routing scores** (one per
 expert), followed by a softmax and a Top‑$k$ selection. The details vary (token-level routing,
-per-head routing, shared experts, etc.), but many open-source MoE architectures follow this basic
+per-head routing, shared experts, etc.), but most open-source MoE architectures follow this basic
 softmax + Top‑$k$ pattern.
 
 This article assumes you're familiar with traditional [MoE basics](https://newsletter.maartengrootendorst.com/p/a-visual-guide-to-mixture-of-experts) so we can focus on failure modes and alternative ways to think about sparsity. This is the first part in a two-part sequence: here we build a lens and situate recent work; next we get more concrete.
@@ -30,6 +30,17 @@ The classic issues encountered with MoEs are:
 * Under-specialization (several experts learning the same thing) 
 * "Dead experts" (some experts never getting selected by the router)
 * Load imbalance (some experts activating far more frequently than others)
+
+![Visualization of MoE failure modes](../img/post2/lakes.svg)
+
+As a simplifying thought experiment, imagine “lakes” (regions of the data manifold) with different
+amounts of “fish” (training signal), and “fishermen” (experts) that can only fish where they’re
+routed. With 2 lakes containing 10 and 4 fish and 2 fishermen, sending both to the 10‑fish lake is
+globally suboptimal (10 vs 14), but locally stable: neither fisherman has an incentive (gradient) to
+move to the uncovered lake. A poorly initialized fisherman in an empty lake starves
+(<span class="idea">zero gradient flow from hard top-k gating</span>), while a fisherman who finds a
+huge lake gets disproportionately rich
+(<span class="idea">without any redistributive mechanism</span>).
 
 These all stem from the Top‑$k$ filter that we apply to routing scores. The selection itself is a
 hard, non‑differentiable operation: during the forward pass we pick the *currently* highest‑scoring
