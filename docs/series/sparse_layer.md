@@ -98,11 +98,7 @@ We sample 100 datapoints from each dataset and let the models run until they nat
 
 ![Mixtral Analysis](../img/post2/mixtral_analysis.png)
 
-#### Understanding the Visualization
-
-The output visualization has four panels:
-
-##### Panel 1: Expert Usage by Task Category (Top-Left)
+#### Panel 1: Expert Usage by Task Category
 
 A heatmap showing how often each expert gets selected per category.
 
@@ -118,7 +114,7 @@ A heatmap showing how often each expert gets selected per category.
 
 ---
 
-##### Panel 2: Expert Specialization by Layer (Top-Right)
+#### Panel 2: Expert Specialization by Layer
 
 Line plot showing specialization scores across the 32 transformer layers.
 
@@ -137,7 +133,7 @@ where entropy = $-Σ p(i) × log₂(p(i))$ and max_entropy = $log₂(8) = 3 bits
 
 ---
 
-##### Panel 3: Cross-Category Expert Similarity (Bottom-Left)
+#### Panel 3: Cross-Category Expert Similarity
 
 Heatmap showing cosine similarity between categories' expert usage patterns.
 
@@ -167,13 +163,22 @@ cos(θ) = (A · B) / (|A| × |B|)
 
 ---
 
-##### Panel 4: Dominant Expert by Category & Layer (Bottom-Right)
+#### Panel 4: Dominant Expert by Category & Layer
 
 Bar chart showing which expert is most frequently selected at each layer, broken down by category.
 
 **What it measures:** The "winning" expert at sampled layers (0, 4, 8, 12, ..., 28), with selection percentage annotated.
 
 **Mixtral:** Some layer-specific “winners” exist (e.g., layer 12 often prefers a particular expert), but margins are small (often ~13-17%), and no category strongly deviates from others.
+
+#### DeepSeek-V2 Lite
+
+![DeepSeek-V2 results](../img/post2/deepseek_analysis.png)
+
+In contrast to Mixtral, DeepSeek-V2 Lite shows more meaningful expert specialization across task definitions.
+
+* **More structure than Mixtral:** Averaged over layers, the “top specialized” experts sit around ~1-3% selection probability (vs a 64-expert uniform baseline of \(1/64 \approx 1.6\%\)), indicating meaningful deviations from uniform routing.
+* **Stronger (and category-dependent) specialization across depth:** Entropy-based specialization is much larger (often ~0.10–0.25), with categories separating noticeably (e.g., coding/math higher than reading/commonsense in many layers).
 
 ## 3. Core Frames
 
