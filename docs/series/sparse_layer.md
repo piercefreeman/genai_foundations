@@ -76,9 +76,9 @@ developed.
 
 ### 2.1. Measuring Limitations
 
-Most papers only publish cursory analysis on the routing behavior of their MoE head. With access to the full inference weights, however, it's possible to measure how they route differently on benchmarks.
+Most papers only publish cursory analysis on the routing behavior of their MoE head. With access to the full inference weights, however, it's possible to measure how they route given different inputs to see if there are common trends.
 
-#### Methodology (what we measure)
+#### Methodology
 
 To make “expert specialization” concrete, we log **which experts get selected** by the router during inference and then aggregate those selections by **task category** and **layer**. Let's take Mixtral as one representative model here.
 
@@ -93,6 +93,10 @@ p_{i,ℓ,c} = (# times expert i is selected among the Top-2 at layer ℓ for cat
 ```
 
 This gives an 8‑way probability distribution per (layer, category). The plots below are different views of the same object: **how the routing distribution changes (or doesn’t) across categories and depth**.
+
+We sample 100 datapoints from each dataset and let the models run until they naturally terminate. To motivate the below discussion, we use this evaluation as a grounding focus.
+
+![Mixtral Analysis](../img/post2/mixtral_analysis.png)
 
 #### Understanding the Visualization
 
@@ -110,6 +114,8 @@ A heatmap showing how often each expert gets selected per category.
 * Uniform baseline would be **12.5%** (1/8 experts)
 * Warmer colors = higher selection probability
 
+**Mixtral:** Nearly uniform distribution (roughly 11-14% range). If experts were task-specialized, we'd see patterns like "math → Expert 3 at 40%, others at 8%".
+
 ---
 
 ##### Panel 2: Expert Specialization by Layer (Top-Right)
@@ -118,18 +124,16 @@ Line plot showing specialization scores across the 32 transformer layers.
 
 **What it measures:** How "concentrated" expert selection is at each layer, computed using entropy:
 
-```
-specialization = 1 - (entropy / max_entropy)
+$specialization = 1 - (entropy / max\_entropy)$
 
-where:
-  entropy = -Σ p(i) × log₂(p(i))
-  max_entropy = log₂(8) = 3 bits
-```
+where entropy = $-Σ p(i) × log₂(p(i))$ and max_entropy = $log₂(8) = 3 bits$
 
 **Interpretation:**
 
 * **1.0** = One expert always chosen (maximum specialization)
 * **0.0** = All 8 experts equally likely (no specialization)
+
+**Mixtral:** Scores of roughly 0.01-0.08 indicate nearly uniform selection. Layers 11-12 show slight peaks, suggesting mid-network layers have marginally more concentrated routing.
 
 ---
 
@@ -159,6 +163,8 @@ cos(θ) = (A · B) / (|A| × |B|)
 * **1.0** → Vectors point same direction (identical expert preferences)
 * **0.0** → Vectors perpendicular (uncorrelated preferences)
 
+**Mixtral:** All similarities >0.997, meaning the vectors are essentially parallel. Categories route tokens to experts in nearly identical proportions.
+
 ---
 
 ##### Panel 4: Dominant Expert by Category & Layer (Bottom-Right)
@@ -167,16 +173,7 @@ Bar chart showing which expert is most frequently selected at each layer, broken
 
 **What it measures:** The "winning" expert at sampled layers (0, 4, 8, 12, ..., 28), with selection percentage annotated.
 
-#### Mixtral v0.1
-
-![Mixtral Analysis](../img/post2/mixtral_analysis.png)
-
-#### Mixtral specific takeaways
-
-* **Near-uniform expert usage by category:** Expert selection probabilities are tightly clustered (roughly 11-14% per expert vs a 12.5% uniform baseline), with no “math/coding/etc. → one expert dominates” pattern.
-* **Low specialization across depth:** Entropy-based specialization stays very close to zero (roughly 0.01-0.08), with only small mid-network bumps (around layers 11-12).
-* **Categories route almost identically:** Cross-category cosine similarities are extremely high (>0.997), meaning expert-usage vectors are nearly parallel across task types.
-* **Layer effects exist, but are small:** Some layers have a “dominant” expert, but margins are modest (often ~13-17%), and these winners don’t meaningfully differ by category.
+**Mixtral:** Some layer-specific “winners” exist (e.g., layer 12 often prefers a particular expert), but margins are small (often ~13-17%), and no category strongly deviates from others.
 
 ## 3. Core Frames
 
