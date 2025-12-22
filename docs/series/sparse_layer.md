@@ -28,7 +28,7 @@ This article assumes you're familiar with traditional [MoE basics](https://newsl
 The classic issues encountered with MoEs are:
 
 * Under-specialization (several experts learning the same thing) 
-* "Dead experts" (some experts never getting selected by the router)
+* Dead experts (some experts never getting selected by the router)
 * Load imbalance (some experts activating far more frequently than others)
 
 ![Visualization of MoE failure modes](../img/post2/lakes.svg)
@@ -73,6 +73,110 @@ conditional computation.
 We'll spell out this mental model more concretely in Section 2, and connect it to some classical
 work. In Section 3, we'll situate some recent papers along these themes within the frames we've
 developed.
+
+### 2.1. Measuring Limitations
+
+Most papers only publish cursory analysis on the routing behavior of their MoE head. With access to the full inference weights, however, it's possible to measure how they route differently on benchmarks.
+
+#### Methodology (what we measure)
+
+To make “expert specialization” concrete, we log **which experts get selected** by the router during inference and then aggregate those selections by **task category** and **layer**. Let's take Mixtral as one representative model here.
+
+Concretely, for each input in a category:
+
+* We run the model and record, for every token and every MoE layer, the **Top‑2 expert indices** selected by the router (Mixtral has 8 experts per MoE layer).
+* We treat each Top‑2 selection as an event. For expert $i$, layer $\ell$, and category $c$, we estimate:
+
+```
+p_{i,ℓ,c} = (# times expert i is selected among the Top-2 at layer ℓ for category c)
+            / (2 × # tokens routed through layer ℓ for category c)
+```
+
+This gives an 8‑way probability distribution per (layer, category). The plots below are different views of the same object: **how the routing distribution changes (or doesn’t) across categories and depth**.
+
+#### Understanding the Visualization
+
+The output visualization has four panels:
+
+##### Panel 1: Expert Usage by Task Category (Top-Left)
+
+A heatmap showing how often each expert gets selected per category.
+
+**What it measures:** When Mixtral processes each token, its router picks the **top-2 experts** (out of 8) to handle that token. This panel shows the selection probability for each expert.
+
+**How to read it:**
+
+* Each cell shows $P(\text{expert selected} \mid \text{category})$
+* Uniform baseline would be **12.5%** (1/8 experts)
+* Warmer colors = higher selection probability
+
+---
+
+##### Panel 2: Expert Specialization by Layer (Top-Right)
+
+Line plot showing specialization scores across the 32 transformer layers.
+
+**What it measures:** How "concentrated" expert selection is at each layer, computed using entropy:
+
+```
+specialization = 1 - (entropy / max_entropy)
+
+where:
+  entropy = -Σ p(i) × log₂(p(i))
+  max_entropy = log₂(8) = 3 bits
+```
+
+**Interpretation:**
+
+* **1.0** = One expert always chosen (maximum specialization)
+* **0.0** = All 8 experts equally likely (no specialization)
+
+---
+
+##### Panel 3: Cross-Category Expert Similarity (Bottom-Left)
+
+Heatmap showing cosine similarity between categories' expert usage patterns.
+
+**What it measures:** Whether different task types route tokens to experts differently.
+
+**The vectors being compared:**
+
+For each category, we build an 8-element vector of expert selection probabilities:
+
+```
+math   = [P(E0), P(E1), P(E2), P(E3), P(E4), P(E5), P(E6), P(E7)]
+       = [0.13,  0.13,  0.12,  0.13,  0.12,  0.12,  0.13,  0.12]
+
+coding = [0.13,  0.12,  0.13,  0.12,  0.13,  0.11,  0.14,  0.13]
+```
+
+**Cosine similarity** measures the angle between these vectors in 8-dimensional space:
+
+```
+cos(θ) = (A · B) / (|A| × |B|)
+```
+
+* **1.0** → Vectors point same direction (identical expert preferences)
+* **0.0** → Vectors perpendicular (uncorrelated preferences)
+
+---
+
+##### Panel 4: Dominant Expert by Category & Layer (Bottom-Right)
+
+Bar chart showing which expert is most frequently selected at each layer, broken down by category.
+
+**What it measures:** The "winning" expert at sampled layers (0, 4, 8, 12, ..., 28), with selection percentage annotated.
+
+#### Mixtral v0.1
+
+![Mixtral Analysis](../img/post2/mixtral_analysis.png)
+
+#### Mixtral specific takeaways
+
+* **Near-uniform expert usage by category:** Expert selection probabilities are tightly clustered (roughly 11-14% per expert vs a 12.5% uniform baseline), with no “math/coding/etc. → one expert dominates” pattern.
+* **Low specialization across depth:** Entropy-based specialization stays very close to zero (roughly 0.01-0.08), with only small mid-network bumps (around layers 11-12).
+* **Categories route almost identically:** Cross-category cosine similarities are extremely high (>0.997), meaning expert-usage vectors are nearly parallel across task types.
+* **Layer effects exist, but are small:** Some layers have a “dominant” expert, but margins are modest (often ~13-17%), and these winners don’t meaningfully differ by category.
 
 ## 3. Core Frames
 
